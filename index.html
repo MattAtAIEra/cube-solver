@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>解方工作室 · 魔術方塊教學</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --ink:#10161c;          /* 3D 舞台 */
+    --ink-soft:#1a232c;
+    --surface:#eef1f0;      /* 冷調紙面，非奶油色 */
+    --panel:#ffffff;
+    --line:#dfe4e2;
+    --text:#17202a;
+    --muted:#5c6b73;
+    --accent:#0b8a57;       /* 綠 = 完成 / 正確 */
+    --accent-soft:#e2f2ea;
+    --hi:#fff3a8;           /* 口訣螢光筆 */
+    /* 六色 */
+    --w:#f7f7f5; --y:#ffd500; --g:#00a24a; --b:#0046ad; --r:#c41e3a; --o:#ff6a00;
+    --r-sm:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Noto Sans TC",system-ui,sans-serif;
+    background:var(--surface); color:var(--text);
+    -webkit-font-smoothing:antialiased;
+    line-height:1.65;
+  }
+  .app{display:flex;flex-direction:column;min-height:100dvh}
+
+  /* ---------- Header ---------- */
+  header{
+    position:sticky;top:0;z-index:30;
+    display:flex;align-items:center;justify-content:space-between;
+    gap:12px;padding:12px 16px calc(12px + env(safe-area-inset-top,0)) 16px;
+    background:rgba(238,241,240,.86);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:11px;min-width:0}
+  .logo{width:30px;height:30px;border-radius:8px;flex:none;
+    background:
+      linear-gradient(135deg,var(--r) 0 33.3%, var(--y) 33.3% 66.6%, var(--g) 66.6% 100%);
+    box-shadow:inset 0 0 0 2px rgba(0,0,0,.12);}
+  .brand h1{font-family:"Space Grotesk",sans-serif;font-size:16px;font-weight:700;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand span{display:block;font-size:11px;color:var(--muted);font-weight:400;letter-spacing:.5px}
+  .ghost{
+    font-family:"Space Grotesk",sans-serif;font-size:13px;font-weight:600;
+    padding:8px 12px;border:1px solid var(--line);background:var(--panel);
+    border-radius:10px;color:var(--text);cursor:pointer;white-space:nowrap;flex:none;
+  }
+  .ghost:active{transform:scale(.97)}
+
+  /* ---------- Learning map (nav) ---------- */
+  nav{
+    position:sticky;top:calc(55px + env(safe-area-inset-top,0));z-index:20;
+    background:var(--surface);border-bottom:1px solid var(--line);
+    overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  }
+  nav::-webkit-scrollbar{display:none}
+  .map{display:flex;gap:22px;padding:11px 16px;min-width:max-content}
+  .grp{display:flex;flex-direction:column;gap:7px}
+  .grp-label{font-family:"Space Grotesk",sans-serif;font-size:10px;font-weight:700;
+    letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);padding-left:2px}
+  .grp-items{display:flex;gap:7px}
+  .chip{
+    display:flex;align-items:center;gap:7px;white-space:nowrap;
+    padding:7px 12px;border-radius:999px;border:1px solid var(--line);
+    background:var(--panel);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;
+    transition:border-color .15s,background .15s;
+  }
+  .chip .dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chip.on .dot{box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)}
+
+  /* ---------- Layout ---------- */
+  main{width:100%;max-width:1180px;margin:0 auto;padding:18px 16px 40px;
+    display:flex;flex-direction:column;gap:18px}
+  .col-left{display:flex;flex-direction:column;gap:14px;min-width:0}
+
+  /* ---------- Cube stage ---------- */
+  .stage-card{background:var(--ink);border-radius:var(--r-sm);overflow:hidden;
+    box-shadow:0 10px 30px -18px rgba(16,22,28,.6)}
+  .stage-wrap{position:relative;width:100%;height:min(74vw,56vh)}
+  #stage{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block;cursor:grab}
+  #stage:active{cursor:grabbing}
+  .stage-hint{position:absolute;left:12px;bottom:11px;color:rgba(255,255,255,.4);
+    font-size:11px;font-family:"Space Grotesk",sans-serif;letter-spacing:.5px;pointer-events:none}
+  .stage-badge{position:absolute;right:12px;top:11px;display:flex;gap:5px}
+  .stage-badge i{width:14px;height:14px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+
+  /* ---------- Controls ---------- */
+  .controls{display:flex;flex-wrap:wrap;gap:9px}
+  .btn{font-family:"Space Grotesk",sans-serif;font-size:14px;font-weight:600;
+    padding:11px 15px;border-radius:11px;border:1px solid var(--line);
+    background:var(--panel);color:var(--text);cursor:pointer;flex:1 1 auto;min-width:calc(50% - 5px);
+    display:flex;align-items:center;justify-content:center;gap:7px;transition:transform .08s}
+  .btn:active{transform:scale(.97)}
+  .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  .moves{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}
+  .moves button{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:15px;
+    padding:12px 0;border:1px solid var(--line);background:var(--panel);border-radius:10px;cursor:pointer}
+  .moves button:active{transform:scale(.94);background:var(--ink);color:#fff}
+
+  /* ---------- Content panel ---------- */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+    padding:20px 18px}
+  .eyebrow{font-family:"Space Grotesk",sans-serif;font-size:11px;font-weight:700;
+    letter-spacing:2px;text-transform:uppercase;color:var(--accent)}
+  .panel h2{font-family:"Space Grotesk","Noto Sans TC",sans-serif;font-size:23px;
+    font-weight:700;margin:5px 0 2px}
+  .panel .sub{color:var(--muted);font-size:14px;margin-bottom:14px}
+  .panel p{font-size:15px;margin:10px 0;color:#28323b}
+  .panel ul{margin:8px 0 8px 2px;list-style:none;display:grid;gap:8px}
+  .panel li{position:relative;padding-left:22px;font-size:15px;color:#28323b}
+  .panel li::before{content:"";position:absolute;left:2px;top:9px;width:8px;height:8px;
+    border-radius:2px;background:var(--accent)}
+  .panel strong{color:var(--text)}
+
+  /* algorithm token row */
+  .alg-block{margin:16px 0 4px;padding:15px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+  .alg-label{font-size:12px;color:var(--muted);font-family:"Space Grotesk",sans-serif;
+    letter-spacing:1px;text-transform:uppercase;margin-bottom:9px}
+  .tokens{display:flex;flex-wrap:wrap;gap:6px}
+  .token{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:16px;
+    padding:7px 11px;border-radius:8px;border:1px solid var(--line);background:var(--panel);
+    color:var(--text);cursor:pointer;transition:transform .08s}
+  .token:active,.token.flash{transform:scale(.92);background:var(--accent);color:#fff;border-color:var(--accent)}
+
+  .mnemonic{margin-top:14px;font-size:16px;font-weight:500}
+  .mnemonic b{background:linear-gradient(transparent 55%,var(--hi) 55%);padding:0 2px;font-weight:700}
+
+  /* case chips */
+  .cases{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .case{font-size:13px;font-weight:500;padding:8px 13px;border-radius:999px;
+    border:1px solid var(--line);background:var(--panel);cursor:pointer}
+  .case.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .foot{max-width:1180px;margin:0 auto;padding:0 16px 30px;color:var(--muted);font-size:12px}
+  .foot code{font-family:"JetBrains Mono",monospace;background:var(--panel);padding:1px 6px;border-radius:5px;border:1px solid var(--line)}
+
+  /* ---------- Desktop ---------- */
+  @media(min-width:860px){
+    header{position:fixed;top:0;left:0;right:0}
+    nav{position:fixed;top:0;left:0;bottom:0;width:250px;border-right:1px solid var(--line);
+      border-bottom:none;overflow-y:auto;overflow-x:hidden;padding-top:70px}
+    .map{flex-direction:column;gap:20px;min-width:0;padding:18px}
+    .grp-items{flex-direction:column}
+    .chip{width:100%}
+    main{margin-left:250px;margin-top:58px;max-width:none}
+    .foot{margin-left:250px}
+  }
+  @media(min-width:1000px){
+    main{flex-direction:row;align-items:flex-start}
+    .col-left{flex:1.05 1 0;min-width:0;position:sticky;top:74px}
+    .panel{flex:.95 1 0;min-width:0}
+    .stage-wrap{height:min(58vh,520px)}
+  }
+  @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="logo"></div>
+      <div style="min-width:0">
+        <h1>解方工作室</h1>
+        <span>ONE STEP AT A TIME · 一次只學一件事</span>
+      </div>
+    </div>
+    <button class="ghost" id="resetTop">↺ 還原方塊</button>
+  </header>
+
+  <nav><div class="map" id="map"></div></nav>
+
+  <main>
+    <div class="col-left">
+      <div class="stage-card">
+        <div class="stage-wrap">
+          <canvas id="stage"></canvas>
+          <div class="stage-badge">
+            <i style="background:var(--w)"></i><i style="background:var(--r)"></i>
+            <i style="background:var(--g)"></i><i style="background:var(--y)"></i>
+            <i style="background:var(--o)"></i><i style="background:var(--b)"></i>
+          </div>
+          <div class="stage-hint">拖曳可旋轉視角</div>
+        </div>
+      </div>
+      <div class="controls" id="controls"></div>
+      <div class="moves" id="moves" style="display:none"></div>
+    </div>
+
+    <section class="panel" id="panel"></section>
+  </main>
+
+  <div class="foot">
+    以 HTML · CSS · JavaScript · Three.js 打造 · 單檔可直接部署到 GitHub Pages / Vercel。
+    新增 OLL / PLL 情況只要在原始碼的 <code>LESSONS</code> 陣列裡多加一筆 <code>{name, alg, mnemonic}</code> 即可。
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   1. 3D 魔術方塊引擎（自建，支援公式解析與動畫播放）
+   ============================================================ */
+const COL={ U:0xf7f7f5,D:0xffd500,F:0x00a24a,B:0x0046ad,R:0xc41e3a,L:0xff6a00,X:0x141a20 };
+
+let renderer,scene,camera,cubeGroup,cubelets=[];
+const canvas=document.getElementById('stage');
+
+function initScene(){
+  const wrap=canvas.parentElement;
+  renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setClearColor(0x10161c,1);
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(33,1,0.1,100);
+  camera.position.set(6.5,5.9,8.7); camera.lookAt(0,0,0);
+  cubeGroup=new THREE.Group();
+  cubeGroup.rotation.set(-0.32,-0.62,0);
+  scene.add(cubeGroup);
+  buildCube();
+  onResize();
+  window.addEventListener('resize',onResize);
+  new ResizeObserver(onResize).observe(canvas.parentElement);
+  [50,200,500,1000].forEach(t=>setTimeout(onResize,t));
+  requestAnimationFrame(loop);
+}
+
+function buildCube(){
+  // 移除並釋放舊的所有子物件（含任何殘留）
+  for(let i=cubeGroup.children.length-1;i>=0;i--){
+    const c=cubeGroup.children[i];
+    if(c.geometry)c.geometry.dispose();
+    if(Array.isArray(c.material))c.material.forEach(m=>m.dispose());
+    else if(c.material)c.material.dispose();
+    cubeGroup.remove(c);
+  }
+  cubelets=[];
+  for(let x=-1;x<=1;x++)for(let y=-1;y<=1;y++)for(let z=-1;z<=1;z++){
+    if(!x&&!y&&!z)continue;
+    const mats=[
+      face(x===1?COL.R:COL.X), face(x===-1?COL.L:COL.X),
+      face(y===1?COL.U:COL.X), face(y===-1?COL.D:COL.X),
+      face(z===1?COL.F:COL.X), face(z===-1?COL.B:COL.X),
+    ];
+    const m=new THREE.Mesh(new THREE.BoxGeometry(0.93,0.93,0.93),mats);
+    m.position.set(x,y,z);
+    cubeGroup.add(m); cubelets.push(m);
+  }
+}
+function face(c){return new THREE.MeshBasicMaterial({color:c})}
+
+/* --- 公式定義：軸、層、順時針方向 --- */
+const M={
+  U:{a:'y',l:1,s:-1}, D:{a:'y',l:-1,s:1},
+  R:{a:'x',l:1,s:-1}, L:{a:'x',l:-1,s:1},
+  F:{a:'z',l:1,s:-1}, B:{a:'z',l:-1,s:1},
+  x:{a:'x',l:'all',s:-1}, y:{a:'y',l:'all',s:-1}, z:{a:'z',l:'all',s:-1},
+  M:{a:'x',l:0,s:1}, E:{a:'y',l:0,s:1}, S:{a:'z',l:0,s:-1},
+};
+function parseAlg(str){
+  return String(str).trim().split(/\s+/).filter(Boolean).map(t=>{
+    const f=t[0]; if(!M[f])return null;
+    return {f, dir:t.includes("'")?-1:1, times:t.includes('2')?2:1};
+  }).filter(Boolean);
+}
+function invert(moves){
+  return moves.slice().reverse().map(m=>({...m,dir:m.times===2?m.dir:-m.dir}));
+}
+function selectLayer(mv){
+  const def=M[mv.f];
+  if(def.l==='all')return cubelets.slice();
+  const i={x:'x',y:'y',z:'z'}[def.a];
+  return cubelets.filter(c=>Math.round(c.position[i])===def.l);
+}
+const AX={x:new THREE.Vector3(1,0,0),y:new THREE.Vector3(0,1,0),z:new THREE.Vector3(0,0,1)};
+
+function snap(c){
+  const m=new THREE.Matrix4().makeRotationFromQuaternion(c.quaternion);
+  const e=m.elements;[0,1,2,4,5,6,8,9,10].forEach(i=>e[i]=Math.round(e[i]));
+  c.quaternion.setFromRotationMatrix(m);
+}
+function applyInstant(moves){
+  moves.forEach(mv=>{
+    const def=M[mv.f], pivot=new THREE.Group(); cubeGroup.add(pivot);
+    const layer=selectLayer(mv); layer.forEach(c=>pivot.attach(c));
+    pivot.setRotationFromAxisAngle(AX[def.a], def.s*mv.dir*(Math.PI/2)*mv.times);
+    layer.forEach(c=>{cubeGroup.attach(c);
+      c.position.set(Math.round(c.position.x),Math.round(c.position.y),Math.round(c.position.z));
+      snap(c);});
+    cubeGroup.remove(pivot);
+  });
+}
+
+let queue=[],busy=false;
+function enqueue(moves){queue.push(...moves);pump();}
+function pump(){
+  if(busy||!queue.length)return; busy=true;
+  const mv=queue.shift(), def=M[mv.f];
+  const pivot=new THREE.Group(); cubeGroup.add(pivot);
+  const layer=selectLayer(mv); layer.forEach(c=>pivot.attach(c));
+  const total=def.s*mv.dir*(Math.PI/2)*mv.times, dur=250*mv.times, t0=performance.now();
+  (function tick(now){
+    let t=Math.min((now-t0)/dur,1);
+    const e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+    pivot.setRotationFromAxisAngle(AX[def.a],total*e);
+    if(t<1)requestAnimationFrame(tick);
+    else{
+      pivot.setRotationFromAxisAngle(AX[def.a],total);
+      layer.forEach(c=>{cubeGroup.attach(c);
+        c.position.set(Math.round(c.position.x),Math.round(c.position.y),Math.round(c.position.z));
+        snap(c);});
+      cubeGroup.remove(pivot); busy=false; pump();
+    }
+  })(t0);
+}
+
+/* --- 視角拖曳 --- */
+let drag=false,px,py;
+canvas.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY;canvas.setPointerCapture(e.pointerId);});
+canvas.addEventListener('pointerup',()=>drag=false);
+canvas.addEventListener('pointercancel',()=>drag=false);
+canvas.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  cubeGroup.rotation.y+=(e.clientX-px)*0.008;
+  cubeGroup.rotation.x+=(e.clientY-py)*0.008;
+  cubeGroup.rotation.x=Math.max(-1.3,Math.min(1.3,cubeGroup.rotation.x));
+  px=e.clientX;py=e.clientY;
+});
+
+function onResize(){
+  const wrap=canvas.parentElement;
+  const w=wrap.clientWidth||1, h=wrap.clientHeight||1;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+function loop(){requestAnimationFrame(loop);renderer.render(scene,camera);}
+
+function resetCube(){queue=[];busy=false;buildCube();}
+function scramble(){resetCube();
+  const fs=['U','D','R','L','F','B'];let last='';const seq=[];
+  for(let i=0;i<20;i++){let f;do{f=fs[Math.random()*6|0]}while(f===last);last=f;
+    seq.push({f,dir:Math.random()<.5?1:-1,times:Math.random()<.25?2:1});}
+  applyInstant(seq);
+}
+
+/* ============================================================
+   2. 教學內容與學習路徑（可自由擴充）
+   ============================================================ */
+const LESSONS=[
+ {id:'basics',group:'基礎',short:'認識方塊',dot:'#f7f7f5',title:'基礎認識',eyebrow:'START HERE',
+  sub:'先看懂方塊怎麼組成，之後每一步都更好理解。',
+  body:`<p>一顆三階方塊由三種零件組成，先分清楚它們，之後看公式就不會迷路。</p>
+  <ul>
+    <li><strong>中心塊</strong>：每面正中央，永遠不動。它決定了那一面「該是什麼顏色」。</li>
+    <li><strong>邊塊</strong>：兩色一組，共 12 個，夾在兩個面之間。</li>
+    <li><strong>角塊</strong>：三色一組，共 8 個，卡在三個面的交角。</li>
+  </ul>
+  <p>右邊的方塊可以用手指拖曳旋轉。按「打亂」感受一下，再按「還原」隨時回到完成狀態。</p>`},
+
+ {id:'notation',group:'基礎',short:'轉動代號',dot:'#ff6a00',title:'轉動代號',eyebrow:'NOTATION',
+  sub:'公式其實就是一串字母，看懂代號就看懂全部公式。',
+  moves:true,
+  body:`<p>每個字母代表「把某一面順時針轉 90 度」，面對著你要轉的那一面來看方向。</p>
+  <ul>
+    <li><strong>R L U D F B</strong>：右、左、上、下、前、後六個面。</li>
+    <li><strong>加上 ′（撇號）</strong>：改成逆時針，例如 <b style="font-family:'JetBrains Mono'">R′</b>。</li>
+    <li><strong>加上 2</strong>：同方向轉兩次（180 度），例如 <b style="font-family:'JetBrains Mono'">U2</b>。</li>
+  </ul>
+  <p>點下方按鈕，方塊會即時示範每一個轉動。慢慢按，把每個代號和動作對上。</p>`},
+
+ {id:'lbl',group:'入門解法',short:'層先法 LBL',dot:'#0046ad',title:'層先法 LBL',eyebrow:'BEGINNER METHOD',
+  sub:'把方塊拆成三層，一層一層完成，建立空間感。',
+  body:`<p>層先法（Layer By Layer）是最好上手的完整解法，順序是：</p>
+  <ul>
+    <li><strong>① 底面十字</strong>：先把一個面的四個邊塊排成十字，並對齊側面顏色。</li>
+    <li><strong>② 底層角塊</strong>：把四個角塊歸位，完成第一層。</li>
+    <li><strong>③ 中層邊塊</strong>：用下面的口訣把中層四個邊塊送進去。</li>
+    <li><strong>④ 頂層</strong>：完成頂面十字、翻色、最後歸位。</li>
+  </ul>
+  <p>下面是「中層邊塊往右插入」的常用小公式，點播放看看它怎麼運作。</p>`,
+  cases:[{name:'中層邊塊 · 往右',alg:"U R U' R' U' F' U F",mnemonic:'邊塊往<b>右</b>：先躲上面，右手放進去，再用<b>前手</b>補回來。'},
+         {name:'中層邊塊 · 往左',alg:"U' L' U L U F U' F'",mnemonic:'和往右<b>完全鏡像</b>：右手換左手，前手換前手。'}]},
+
+ {id:'cfop',group:'進階 CFOP',short:'CFOP 總覽',dot:'#141a20',title:'CFOP 總覽',eyebrow:'ADVANCED',
+  sub:'速解主流方法，把過程拆成四塊獨立技能。',
+  body:`<p>CFOP 不是全新方法，而是把層先法「升級」成更有效率的四步驟。分開學，壓力小很多。</p>
+  <ul>
+    <li><strong>C · Cross 底十字</strong>：更快、更有規劃地做出底層十字。</li>
+    <li><strong>F · F2L 底兩層</strong>：角塊與邊塊配對後一起插入，一次完成兩層。</li>
+    <li><strong>O · OLL 頂層翻色</strong>：讓整個頂面變同色（不管位置對不對）。</li>
+    <li><strong>P · PLL 頂層歸位</strong>：把頂層每一塊移到正確位置，完成。</li>
+  </ul>
+  <p>左邊學習地圖已經把這四塊分開，建議一次專心練一塊。</p>`},
+
+ {id:'cross',group:'進階 CFOP',short:'底十字 Cross',dot:'#ffd500',title:'底十字 Cross',eyebrow:'STEP · C',
+  sub:'整個解法的地基：先觀察，再動手。',
+  body:`<p>底十字是四個底層邊塊排成十字、且側面顏色對齊中心塊。這一步<strong>重觀察、少公式</strong>。</p>
+  <ul>
+    <li>先在腦中找出四個「底色邊塊」現在在哪裡。</li>
+    <li>盡量用直覺移動，不要每個都轉一大圈。</li>
+    <li>目標：8 步以內完成，並讓側面顏色和中心塊連成一線。</li>
+  </ul>
+  <p>按「打亂」，試著只用眼睛先找出四個邊塊，再慢慢還原十字。</p>`},
+
+ {id:'f2l',group:'進階 CFOP',short:'底兩層 F2L',dot:'#00a24a',title:'底兩層 F2L',eyebrow:'STEP · F',
+  sub:'角塊＋邊塊配成一對，再一起塞進槽位。',
+  body:`<p>F2L 的核心是「配對」：先讓一個角塊和它對應的邊塊在頂層湊成一組，再一起插入下方的槽。</p>
+  <ul>
+    <li>先看角塊白面朝哪，決定用右手還是左手。</li>
+    <li>把配對好的一組移到對應的插入位置正上方。</li>
+    <li>用下面的觸發公式送進去。</li>
+  </ul>
+  <p>選一個情況，先按「設定情況」擺出狀況，再按「播放解法」看它插入。</p>`,
+  cases:[{name:'配對後 · 右手插入',alg:"U R U' R'",mnemonic:'最基本的<b>右手三步</b>：推上去、轉開、收回來。'},
+         {name:'配對後 · 左手插入',alg:"U' L' U L",mnemonic:'右手的<b>鏡像</b>版本，槽位在左邊時用。'},
+         {name:'角邊分開 · 先拆再配',alg:"R U' R' U R U' R'",mnemonic:'角邊卡錯時：先<b>拉出來</b>重配，再一次送進去。'}]},
+
+ {id:'oll',group:'進階 CFOP',short:'頂層翻色 OLL',dot:'#c41e3a',title:'頂層翻色 OLL',eyebrow:'STEP · O',
+  sub:'先不管位置，讓整個頂面變成同一色。',
+  body:`<p>OLL（Orientation of the Last Layer）只做一件事：把頂面翻成同色。先學這四個高頻情況。</p>
+  <ul>
+    <li>先辨識頂面現在的圖案（點、線、L 形、十字、小魚…）。</li>
+    <li>把方塊轉到公式假設的方向，再套用對應公式。</li>
+    <li>翻色完成後不用管側面亂掉，那是下一步 PLL 的事。</li>
+  </ul>
+  <p>選情況 → 設定情況 → 播放解法，觀察頂面怎麼一次翻好。</p>`,
+  cases:[{name:'一字型（頂面橫線）',alg:"F R U R' U' F'",mnemonic:'橫線朝<b>左右</b>擺好：<b>F 起頭、F 收尾</b>。'},
+         {name:'彎角型（L 形）',alg:"F U R U' R' F'",mnemonic:'把彎角朝<b>左上</b>：一樣 F 包起來，中間換順序。'},
+         {name:'小魚 Sune',alg:"R U R' U R U2 R'",mnemonic:'<b>小魚</b>：右上右、右上上右。只用右手就搞定。'},
+         {name:'反小魚 Anti-Sune',alg:"R U2 R' U' R U' R'",mnemonic:'小魚的<b>反向</b>：先右上上，再連兩組右手收尾。'}]},
+
+ {id:'pll',group:'進階 CFOP',short:'頂層歸位 PLL',dot:'#0046ad',title:'頂層歸位 PLL',eyebrow:'STEP · P',
+  sub:'最後一步：把頂層每一塊移到對的位置。',
+  body:`<p>PLL（Permutation of the Last Layer）是收尾：頂面已同色，只需把角塊、邊塊移到正確位置。</p>
+  <ul>
+    <li>先繞著頂層看一圈，找出哪些塊需要交換。</li>
+    <li>對照下面四個常見情況，套用公式。</li>
+    <li>最後可能還要轉一下頂層 U，讓整顆完全對齊。</li>
+  </ul>
+  <p>設定情況後播放，看最後一塊怎麼各就各位。</p>`,
+  cases:[{name:'T 型（T-perm）',alg:"R U R' U' R' F R2 U' R' U' R U R' F'",mnemonic:'交換<b>一組相鄰角</b>和<b>一組邊</b>，最常遇到的收尾。'},
+         {name:'Y 型（Y-perm）',alg:"F R U' R' U' R U R' F' R U R' U' R' F R F'",mnemonic:'對角兩角互換：<b>兩段公式</b>接起來，長但很順手。'},
+         {name:'三邊輪換（Ua-perm）',alg:"R U' R U R U R U' R' U' R2",mnemonic:'三個邊塊<b>逆時針</b>輪一圈，只用右手和上層。'},
+         {name:'角＋邊（Jb-perm）',alg:"R U R' F' R U R' U' R' F R2 U' R' U'",mnemonic:'換<b>一組角一組邊</b>，和 T 型是好搭檔。'}]},
+];
+
+/* ============================================================
+   3. 介面渲染與互動
+   ============================================================ */
+const mapEl=document.getElementById('map');
+const panel=document.getElementById('panel');
+const controls=document.getElementById('controls');
+const movesEl=document.getElementById('moves');
+let current=null, activeCase=null;
+
+/* 學習地圖 */
+(function buildMap(){
+  const groups=[...new Set(LESSONS.map(l=>l.group))];
+  groups.forEach(g=>{
+    const wrap=document.createElement('div');wrap.className='grp';
+    wrap.innerHTML=`<div class="grp-label">${g}</div>`;
+    const items=document.createElement('div');items.className='grp-items';
+    LESSONS.filter(l=>l.group===g).forEach(l=>{
+      const c=document.createElement('button');c.className='chip';c.dataset.id=l.id;
+      c.innerHTML=`<span class="dot" style="background:${l.dot}"></span>${l.short}`;
+      c.onclick=()=>select(l.id);
+      items.appendChild(c);
+    });
+    wrap.appendChild(items);mapEl.appendChild(wrap);
+  });
+})();
+
+const MOVE_BTNS=["R","R'","U","U'","F","F'","L","L'","D","D'","B","B'"];
+(function buildMoveBtns(){
+  MOVE_BTNS.forEach(m=>{
+    const b=document.createElement('button');b.textContent=m;
+    b.onclick=()=>{if(!busy)enqueue(parseAlg(m));};
+    movesEl.appendChild(b);
+  });
+})();
+
+function select(id){
+  const l=LESSONS.find(x=>x.id===id); if(!l)return;
+  current=l; activeCase=(l.cases&&l.cases[0])||null;
+  resetCube();
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c.dataset.id===id));
+  movesEl.style.display=l.moves?'grid':'none';
+  renderPanel(); renderControls();
+}
+
+function renderPanel(){
+  const l=current;
+  let html=`<div class="eyebrow">${l.eyebrow}</div><h2>${l.title}</h2>
+    <div class="sub">${l.sub}</div>${l.body}`;
+  if(activeCase){
+    html+=`<div class="alg-block">
+      <div class="alg-label">公式 · 點任一步可單獨示範</div>
+      <div class="tokens" id="tokens"></div>
+      <div class="mnemonic">口訣：${activeCase.mnemonic}</div>
+    </div>`;
+  }
+  if(l.cases){
+    html+=`<div class="cases" id="cases"></div>`;
+  }
+  panel.innerHTML=html;
+
+  if(l.cases){
+    const box=panel.querySelector('#cases');
+    l.cases.forEach((cs,i)=>{
+      const b=document.createElement('button');
+      b.className='case'+(cs===activeCase?' on':'');b.textContent=cs.name;
+      b.onclick=()=>{activeCase=cs;resetCube();renderPanel();renderControls();};
+      box.appendChild(b);
+    });
+  }
+  if(activeCase)renderTokens();
+}
+
+function renderTokens(){
+  const box=panel.querySelector('#tokens'); if(!box)return;
+  activeCase.alg.trim().split(/\s+/).forEach(t=>{
+    const b=document.createElement('button');b.className='token';b.textContent=t;
+    b.onclick=()=>{if(busy)return;b.classList.add('flash');setTimeout(()=>b.classList.remove('flash'),260);
+      enqueue(parseAlg(t));};
+    box.appendChild(b);
+  });
+}
+
+function renderControls(){
+  controls.innerHTML='';
+  const mk=(label,cls,fn,dis)=>{const b=document.createElement('button');
+    b.className='btn'+(cls?' '+cls:'');b.textContent=label;b.disabled=!!dis;b.onclick=fn;controls.appendChild(b);};
+  if(activeCase){
+    mk('設定情況','',()=>{if(busy)return;resetCube();applyInstant(invert(parseAlg(activeCase.alg)));});
+    mk('▶ 播放解法','primary',()=>{if(busy)return;enqueue(parseAlg(activeCase.alg));});
+  }
+  mk('🔀 打亂','',()=>scramble());
+  mk('↺ 重置','',()=>resetCube());
+}
+
+document.getElementById('resetTop').onclick=()=>resetCube();
+
+/* 啟動 */
+initScene();
+select('basics');
+</script>
+</body>
+</html>
