@@ -105,7 +105,7 @@
   .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 
   .moves{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}
-  .moves button{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:15px;
+  .moves button{font-family:"Noto Sans TC",sans-serif;font-weight:700;font-size:15px;
     padding:12px 0;border:1px solid var(--line);background:var(--panel);border-radius:10px;cursor:pointer}
   .moves button:active{transform:scale(.94);background:var(--ink);color:#fff}
 
@@ -129,7 +129,7 @@
   .alg-label{font-size:12px;color:var(--muted);font-family:"Space Grotesk",sans-serif;
     letter-spacing:1px;text-transform:uppercase;margin-bottom:9px}
   .tokens{display:flex;flex-wrap:wrap;gap:6px}
-  .token{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:16px;
+  .token{font-family:"Noto Sans TC",sans-serif;font-weight:700;font-size:16px;
     padding:7px 11px;border-radius:8px;border:1px solid var(--line);background:var(--panel);
     color:var(--text);cursor:pointer;transition:transform .08s}
   .token:active,.token.flash{transform:scale(.92);background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -142,6 +142,31 @@
   .case{font-size:13px;font-weight:500;padding:8px 13px;border-radius:999px;
     border:1px solid var(--line);background:var(--panel);cursor:pointer}
   .case.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  /* ---------- 闖關解鎖 ---------- */
+  .chip-label{flex:1;text-align:left}
+  .chip-status{display:inline-flex;align-items:center;color:var(--muted)}
+  .chip.locked{opacity:.5;cursor:not-allowed;background:var(--surface)}
+  .chip.locked .dot{opacity:.35}
+  .chip.done .chip-status{color:var(--accent)}
+  .chip.on .chip-status{color:#fff}
+
+  .complete-bar{margin-top:22px;padding-top:18px;border-top:1px dashed var(--line);
+    display:flex;flex-direction:column;gap:10px}
+  .btn-complete{font-family:"Space Grotesk","Noto Sans TC",sans-serif;font-weight:700;font-size:15px;
+    padding:14px 16px;border-radius:12px;border:none;cursor:pointer;background:var(--accent);color:#fff;
+    transition:transform .08s}
+  .btn-complete.alt{background:var(--ink)}
+  .btn-complete:active{transform:scale(.98)}
+  .all-done{text-align:center;font-weight:700;font-size:16px;color:var(--accent);padding:6px}
+  .reset-progress{align-self:center;background:none;border:none;color:var(--muted);font-size:12px;
+    cursor:pointer;text-decoration:underline;padding:4px}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(12px);
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;font-weight:500;
+    box-shadow:0 10px 28px -10px rgba(0,0,0,.5);opacity:0;pointer-events:none;
+    transition:opacity .2s,transform .2s;z-index:100;max-width:88vw;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
   .foot{max-width:1180px;margin:0 auto;padding:0 16px 30px;color:var(--muted);font-size:12px}
   .foot code{font-family:"JetBrains Mono",monospace;background:var(--panel);padding:1px 6px;border-radius:5px;border:1px solid var(--line)}
@@ -205,6 +230,7 @@
     以 HTML · CSS · JavaScript · Three.js 打造 · 單檔可直接部署到 GitHub Pages / Vercel。
     新增 OLL / PLL 情況只要在原始碼的 <code>LESSONS</code> 陣列裡多加一筆 <code>{name, alg, mnemonic}</code> 即可。
   </div>
+  <div class="toast" id="toast"></div>
 </div>
 
 <script>
@@ -368,15 +394,16 @@ const LESSONS=[
   <p>右邊的方塊可以用手指拖曳旋轉。按「打亂」感受一下，再按「還原」隨時回到完成狀態。</p>`},
 
  {id:'notation',group:'基礎',short:'轉動代號',dot:'#ff6a00',title:'轉動代號',eyebrow:'NOTATION',
-  sub:'公式其實就是一串字母，看懂代號就看懂全部公式。',
+  sub:'公式就是一連串「哪一面 + 往哪轉」的口令，看懂就看懂全部公式。',
   moves:true,
-  body:`<p>每個字母代表「把某一面順時針轉 90 度」，面對著你要轉的那一面來看方向。</p>
+  body:`<p>每個口令 = <strong>面的名稱 ＋ 方向</strong>。面對著你要轉的那一面來判斷順逆。</p>
   <ul>
-    <li><strong>R L U D F B</strong>：右、左、上、下、前、後六個面。</li>
-    <li><strong>加上 ′（撇號）</strong>：改成逆時針，例如 <b style="font-family:'JetBrains Mono'">R′</b>。</li>
-    <li><strong>加上 2</strong>：同方向轉兩次（180 度），例如 <b style="font-family:'JetBrains Mono'">U2</b>。</li>
+    <li><strong>面的名稱</strong>：上、下、左、右、前、後 —— 對應方塊的六個面。</li>
+    <li><strong>順</strong>：那一面順時針轉 90 度，例如「右順」。</li>
+    <li><strong>逆</strong>：那一面逆時針轉 90 度，例如「右逆」。</li>
+    <li><strong>兩次</strong>：同方向轉 180 度，例如「上兩次」。</li>
   </ul>
-  <p>點下方按鈕，方塊會即時示範每一個轉動。慢慢按，把每個代號和動作對上。</p>`},
+  <p>點下方按鈕，方塊會即時示範每一個轉動。慢慢按，把每個口令和動作對上。</p>`},
 
  {id:'lbl',group:'入門解法',short:'層先法 LBL',dot:'#0046ad',title:'層先法 LBL',eyebrow:'BEGINNER METHOD',
   sub:'把方塊拆成三層，一層一層完成，建立空間感。',
@@ -434,8 +461,8 @@ const LESSONS=[
     <li>翻色完成後不用管側面亂掉，那是下一步 PLL 的事。</li>
   </ul>
   <p>選情況 → 設定情況 → 播放解法，觀察頂面怎麼一次翻好。</p>`,
-  cases:[{name:'一字型（頂面橫線）',alg:"F R U R' U' F'",mnemonic:'橫線朝<b>左右</b>擺好：<b>F 起頭、F 收尾</b>。'},
-         {name:'彎角型（L 形）',alg:"F U R U' R' F'",mnemonic:'把彎角朝<b>左上</b>：一樣 F 包起來，中間換順序。'},
+  cases:[{name:'一字型（頂面橫線）',alg:"F R U R' U' F'",mnemonic:'橫線朝<b>左右</b>擺好：用<b>前</b>開頭、<b>前</b>收尾。'},
+         {name:'彎角型（L 形）',alg:"F U R U' R' F'",mnemonic:'把彎角朝<b>左上</b>：一樣用<b>前</b>把動作包起來，中間換順序。'},
          {name:'小魚 Sune',alg:"R U R' U R U2 R'",mnemonic:'<b>小魚</b>：右上右、右上上右。只用右手就搞定。'},
          {name:'反小魚 Anti-Sune',alg:"R U2 R' U' R U' R'",mnemonic:'小魚的<b>反向</b>：先右上上，再連兩組右手收尾。'}]},
 
@@ -463,8 +490,51 @@ const controls=document.getElementById('controls');
 const movesEl=document.getElementById('moves');
 let current=null, activeCase=null;
 
+/* --- 學習進度 / 闖關解鎖 --- */
+const PKEY='xcube_progress_v1';
+let completed=new Set();
+function loadProgress(){try{const s=localStorage.getItem(PKEY);if(s)completed=new Set(JSON.parse(s));}catch(e){}}
+function saveProgress(){try{localStorage.setItem(PKEY,JSON.stringify([...completed]));}catch(e){}}
+function isUnlocked(i){return i<=0?true:LESSONS.slice(0,i).every(l=>completed.has(l.id));}
+function firstIncomplete(){return LESSONS.find(l=>!completed.has(l.id))||null;}
+const LOCK_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+const CHECK_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
+function refreshMap(){
+  document.querySelectorAll('.chip').forEach(chip=>{
+    const id=chip.dataset.id, i=LESSONS.findIndex(l=>l.id===id);
+    const unlocked=isUnlocked(i), done=completed.has(id), cur=current&&current.id===id;
+    chip.classList.toggle('locked',!unlocked);
+    chip.classList.toggle('done',done);
+    chip.classList.toggle('on',cur);
+    const st=chip.querySelector('.chip-status');
+    if(st) st.innerHTML=!unlocked?LOCK_SVG:(done?CHECK_SVG:'');
+  });
+}
+function markComplete(id){
+  completed.add(id); saveProgress(); refreshMap();
+  const i=LESSONS.findIndex(l=>l.id===id), next=LESSONS[i+1];
+  if(next){select(next.id);showToast('已解鎖下一課 ✓');}
+  else{renderPanel();refreshMap();showToast('恭喜完成全部課程！');}
+}
+function resetProgress(){completed=new Set();saveProgress();select('basics');showToast('學習進度已重置');}
+let toastTimer;
+function showToast(msg){
+  const t=document.getElementById('toast'); if(!t)return;
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+/* --- 中文轉動口令顯示（引擎內部仍用英文解析） --- */
+const CN_FACE={U:'上',D:'下',L:'左',R:'右',F:'前',B:'後',x:'翻X',y:'翻Y',z:'翻Z',M:'中直',E:'中橫',S:'中豎'};
+function toCN(tok){
+  const face=CN_FACE[tok[0]]||tok[0];
+  if(tok.includes('2'))return face+'兩次';
+  if(tok.includes("'"))return face+'逆';
+  return face+'順';
+}
+
 /* 學習地圖 */
-(function buildMap(){
+function buildMap(){
   const groups=[...new Set(LESSONS.map(l=>l.group))];
   groups.forEach(g=>{
     const wrap=document.createElement('div');wrap.className='grp';
@@ -472,30 +542,34 @@ let current=null, activeCase=null;
     const items=document.createElement('div');items.className='grp-items';
     LESSONS.filter(l=>l.group===g).forEach(l=>{
       const c=document.createElement('button');c.className='chip';c.dataset.id=l.id;
-      c.innerHTML=`<span class="dot" style="background:${l.dot}"></span>${l.short}`;
+      c.innerHTML=`<span class="dot" style="background:${l.dot}"></span><span class="chip-label">${l.short}</span><span class="chip-status"></span>`;
       c.onclick=()=>select(l.id);
       items.appendChild(c);
     });
     wrap.appendChild(items);mapEl.appendChild(wrap);
   });
-})();
+}
 
-const MOVE_BTNS=["R","R'","U","U'","F","F'","L","L'","D","D'","B","B'"];
+const MOVE_BTNS=["U","U'","R","R'","L","L'","D","D'","F","F'","B","B'"];
 (function buildMoveBtns(){
   MOVE_BTNS.forEach(m=>{
-    const b=document.createElement('button');b.textContent=m;
+    const b=document.createElement('button');b.textContent=toCN(m);
     b.onclick=()=>{if(!busy)enqueue(parseAlg(m));};
     movesEl.appendChild(b);
   });
 })();
 
 function select(id){
-  const l=LESSONS.find(x=>x.id===id); if(!l)return;
+  const i=LESSONS.findIndex(x=>x.id===id); const l=LESSONS[i]; if(!l)return;
+  if(!isUnlocked(i)){
+    const need=firstIncomplete();
+    showToast('🔒 請先完成前面的課程：'+(need?need.short:''));
+    return;
+  }
   current=l; activeCase=(l.cases&&l.cases[0])||null;
   resetCube();
-  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c.dataset.id===id));
   movesEl.style.display=l.moves?'grid':'none';
-  renderPanel(); renderControls();
+  renderPanel(); renderControls(); refreshMap();
 }
 
 function renderPanel(){
@@ -512,6 +586,7 @@ function renderPanel(){
   if(l.cases){
     html+=`<div class="cases" id="cases"></div>`;
   }
+  html+=`<div class="complete-bar" id="completeBar"></div>`;
   panel.innerHTML=html;
 
   if(l.cases){
@@ -524,12 +599,34 @@ function renderPanel(){
     });
   }
   if(activeCase)renderTokens();
+  renderCompleteBar();
+}
+
+function renderCompleteBar(){
+  const bar=panel.querySelector('#completeBar'); if(!bar||!current)return;
+  const i=LESSONS.findIndex(l=>l.id===current.id), next=LESSONS[i+1];
+  const done=completed.has(current.id);
+  let html='';
+  if(!done){
+    html+=`<button class="btn-complete" id="btnComplete">✓ 我學會了${next?'，解鎖下一課':'，完成課程'}</button>`;
+  }else if(next){
+    html+=`<button class="btn-complete alt" id="btnNext">下一課：${next.short} →</button>`;
+  }else{
+    html+=`<div class="all-done">🎉 恭喜，你已完成全部課程！</div>`;
+  }
+  if(completed.size>0){
+    html+=`<button class="reset-progress" id="btnResetProg">重置學習進度</button>`;
+  }
+  bar.innerHTML=html;
+  const bc=bar.querySelector('#btnComplete'); if(bc)bc.onclick=()=>markComplete(current.id);
+  const bn=bar.querySelector('#btnNext'); if(bn)bn.onclick=()=>select(next.id);
+  const br=bar.querySelector('#btnResetProg'); if(br)br.onclick=resetProgress;
 }
 
 function renderTokens(){
   const box=panel.querySelector('#tokens'); if(!box)return;
   activeCase.alg.trim().split(/\s+/).forEach(t=>{
-    const b=document.createElement('button');b.className='token';b.textContent=t;
+    const b=document.createElement('button');b.className='token';b.textContent=toCN(t);
     b.onclick=()=>{if(busy)return;b.classList.add('flash');setTimeout(()=>b.classList.remove('flash'),260);
       enqueue(parseAlg(t));};
     box.appendChild(b);
@@ -551,7 +648,9 @@ function renderControls(){
 document.getElementById('resetTop').onclick=()=>resetCube();
 
 /* 啟動 */
+loadProgress();
 initScene();
+buildMap();
 select('basics');
 </script>
 </body>
