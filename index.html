@@ -87,8 +87,8 @@
   .stage-card{background:var(--ink);border-radius:var(--r-sm);overflow:hidden;
     box-shadow:0 10px 30px -18px rgba(16,22,28,.6)}
   .stage-wrap{position:relative;width:100%;height:min(74vw,56vh)}
-  #stage{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block;cursor:grab}
-  #stage:active{cursor:grabbing}
+  #stage{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block;cursor:grab;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
   .stage-hint{position:absolute;left:12px;bottom:11px;color:rgba(255,255,255,.4);
     font-size:11px;font-family:"Space Grotesk",sans-serif;letter-spacing:.5px;pointer-events:none}
   .stage-badge{position:absolute;right:12px;top:11px;display:flex;gap:5px}
@@ -238,7 +238,7 @@
             <i style="background:var(--g)"></i><i style="background:var(--w)"></i>
             <i style="background:var(--r)"></i><i style="background:var(--b)"></i>
           </div>
-          <div class="stage-hint">拖曳可旋轉視角</div>
+          <div class="stage-hint" id="stageHint">單指滑動色塊：轉動那一層 · 雙指拖曳：旋轉整顆方塊</div>
         </div>
       </div>
       <div class="controls" id="controls"></div>
@@ -2317,7 +2317,7 @@ function initScene(){
   camera=new THREE.PerspectiveCamera(33,1,0.1,100);
   camera.position.set(6.5,5.9,8.7); camera.lookAt(0,0,0);
   cubeGroup=new THREE.Group();
-  cubeGroup.rotation.set(-0.32,-0.62,0);
+  cubeGroup.rotation.set(0.18,-0.12,0);   // 上、前、右三面都看得清楚，單指才按得到、滑得動
   scene.add(cubeGroup);
   buildCube();
   onResize();
@@ -2422,18 +2422,161 @@ function pump(){
   })(t0);
 }
 
-/* --- 視角拖曳 --- */
-let drag=false,px,py;
-canvas.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY;canvas.setPointerCapture(e.pointerId);});
-canvas.addEventListener('pointerup',()=>drag=false);
-canvas.addEventListener('pointercancel',()=>drag=false);
-canvas.addEventListener('pointermove',e=>{
-  if(!drag)return;
-  cubeGroup.rotation.y+=(e.clientX-px)*0.008;
-  cubeGroup.rotation.x+=(e.clientY-py)*0.008;
-  cubeGroup.rotation.x=Math.max(-1.3,Math.min(1.3,cubeGroup.rotation.x));
-  px=e.clientX;py=e.clientY;
+/* --- 手勢：單指在色塊上滑動 = 轉動那一層；雙指拖曳 = 旋轉整顆方塊（只換視角）---
+   滑鼠沒有第二根手指，改成拖曳方塊外的空白處，或按住右鍵 / 中鍵拖曳來旋轉整顆方塊。 */
+const raycaster=new THREE.Raycaster();
+const HIT_BOX=new THREE.Box3(new THREE.Vector3(-1.5,-1.5,-1.5),new THREE.Vector3(1.5,1.5,1.5));
+const AXES=['x','y','z'];
+const LAYER_MOVE={x:['L','M','R'],y:['D','E','U'],z:['B','S','F']};   // 索引 = 層的座標 + 1
+const FLICK=0.3;        // 放開前 0.1 秒內的速度超過這個值（px/ms）就算「甩」，直接轉滿 90 度
+const ptrs=new Map();   // 目前按在畫布上的每一根手指：pointerId → {x,y}
+let gest=null;          // 目前的手勢：turn 剛按下 / drag 跟著手指轉 / orbit 轉整顆 / idle、done 不做事
+
+function orbitBy(dx,dy){
+  cubeGroup.rotation.y+=dx*0.008;
+  cubeGroup.rotation.x=Math.max(-1.3,Math.min(1.3,cubeGroup.rotation.x+dy*0.008));
+}
+function centroid(){
+  let x=0,y=0; ptrs.forEach(p=>{x+=p.x;y+=p.y;});
+  return {x:x/ptrs.size,y:y/ptrs.size};
+}
+// 方塊座標（cubeGroup 內）→ 畫布上的 CSS 像素
+function toScreen(v){
+  const w=v.clone().applyMatrix4(cubeGroup.matrixWorld).project(camera);
+  return {x:(w.x+1)/2*canvas.clientWidth, y:(1-w.y)/2*canvas.clientHeight};
+}
+// 手指按在哪一面的哪一點；用整顆方塊的外框來算，按到色塊間的縫也照樣算數
+function pickFace(cx,cy){
+  const r=canvas.getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2((cx-r.left)/r.width*2-1,-(cy-r.top)/r.height*2+1),camera);
+  cubeGroup.updateMatrixWorld();
+  const ray=raycaster.ray.clone().applyMatrix4(cubeGroup.matrixWorld.clone().invert());
+  const p=ray.intersectBox(HIT_BOX,new THREE.Vector3());
+  if(!p)return null;
+  const nAxis=AXES.reduce((a,b)=>Math.abs(p[b])>Math.abs(p[a])?b:a);
+  return {nAxis,nSign:Math.sign(p[nAxis]),p};
+}
+// 手指滑出一小段距離後，決定轉哪一層、往哪轉
+function lockTurn(g,dx,dy){
+  const n=new THREE.Vector3(); n[g.nAxis]=g.nSign;
+  // 這一面上有兩個方向可以推，挑在螢幕上和手指移動方向最接近的那一個
+  const STEP=0.1, s0=toScreen(g.p);
+  let best=null;
+  for(const a of AXES){
+    if(a===g.nAxis)continue;
+    const d=new THREE.Vector3(); d[a]=STEP;
+    const s1=toScreen(g.p.clone().add(d)), sx=s1.x-s0.x, sy=s1.y-s0.y, len=Math.hypot(sx,sy)||1e-6;
+    const cos=(dx*sx+dy*sy)/(Math.hypot(dx,dy)*len);
+    if(!best||Math.abs(cos)>Math.abs(best.cos))best={a,cos,ux:sx/len,uy:sy/len,pxPerUnit:len/STEP};
+  }
+  const sgnD=best.cos<0?-1:1, d=new THREE.Vector3(); d[best.a]=sgnD;
+  // 轉軸 = 面的法線 × 推的方向；繞這個軸正轉，被按住的色塊就會往手指的方向走
+  const A=new THREE.Vector3().crossVectors(n,d);
+  const axis=AXES.find(a=>Math.abs(A[a])>0.5), sgn=Math.sign(A[axis]);
+  const layer=Math.max(-1,Math.min(1,Math.round(g.p[axis])));
+  if(busy){
+    // 上一下還在轉（例如連續快速滑動）：直接排一個 90 度；正在播放公式時則不插隊
+    if(!queue.length){const f=LAYER_MOVE[axis][layer+1]; enqueue([{f,dir:sgn*M[f].s,times:1}]);}
+    return {type:'done',id:g.id};
+  }
+  busy=true;
+  const pivot=new THREE.Group(); cubeGroup.add(pivot);
+  const cubes=cubelets.filter(c=>Math.round(c.position[axis])===layer);
+  cubes.forEach(c=>pivot.attach(c));
+  // 被按住的那一點離轉軸 1.5 單位：正對著看的面，色塊會貼著手指走。
+  // 斜看的面在螢幕上被壓扁，改用方塊中心的比例，讓轉 90 度需要的手指距離在每一面都差不多。
+  const pxCenter=canvas.clientHeight/(2*Math.tan(camera.fov*Math.PI/360)*camera.position.length());
+  return {type:'drag',id:g.id,x0:g.x0,y0:g.y0,ux:best.ux*sgnD,uy:best.uy*sgnD,
+    pxPerRad:1.5*Math.max(best.pxPerUnit,pxCenter),
+    pivot,cubes,axis,sgn,ang:0,gen:cubeGen,hist:[{time:g.t0,t:0}]};
+}
+function dragTo(g,x,y,time){
+  const t=(x-g.x0)*g.ux+(y-g.y0)*g.uy;   // 手指沿著推的方向走了幾個像素
+  g.ang=t/g.pxPerRad;
+  g.pivot.setRotationFromAxisAngle(AX[g.axis],g.sgn*g.ang);
+  g.hist.push({time,t}); if(g.hist.length>16)g.hist.shift();
+}
+// 放開手指：轉到最接近的 90 度倍數。還沒轉滿 90 度時，快速往前甩 = 補滿，快速往回甩 = 取消
+function releaseDrag(g,time,useFlick){
+  if(g.gen!==cubeGen)return;   // 方塊已被重置，這一層早就不在了
+  const Q=Math.PI/2, q=g.ang/Q;
+  let k=Math.round(q);
+  if(useFlick&&Math.abs(q)<1){
+    // 取最後 0.1 秒內的移動來算速度；這段時間內只有放開那一筆時，往前多拿一筆（停住再放開 → 速度為 0）
+    const h=g.hist, last=h.length-1; let i=last;
+    while(i>0&&time-h[i-1].time<=100)i--;
+    const a=h[i===last?Math.max(0,i-1):i], b=h[last], dt=b.time-a.time, v=dt>0?(b.t-a.t)/dt:0;
+    if(Math.abs(v)>FLICK)k=(Math.sign(v)===Math.sign(q)&&Math.abs(q)>0.05)?Math.sign(q):0;
+  }
+  const from=g.ang, to=k*Q, gen=g.gen, t0=performance.now();
+  const dur=Math.min(220,Math.max(80,Math.abs(to-from)/Q*220));
+  (function tick(now){
+    if(gen!==cubeGen)return;
+    const t=Math.min((now-t0)/dur,1), e=1-Math.pow(1-t,3);
+    g.pivot.setRotationFromAxisAngle(AX[g.axis],g.sgn*(from+(to-from)*e));
+    if(t<1)return requestAnimationFrame(tick);
+    settle(g.pivot,g.cubes); busy=false; pump();
+  })(t0);
+}
+function startOrbit(time){
+  if(gest&&gest.type==='drag')releaseDrag(gest,time,false);   // 第二根手指放下：轉到一半的那層先轉到最接近的 90 度
+  gest={type:'orbit',...centroid()};
+}
+function hoverCursor(e){ canvas.style.cursor=pickFace(e.clientX,e.clientY)?'pointer':'grab'; }
+
+canvas.addEventListener('pointerdown',e=>{
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  try{canvas.setPointerCapture(e.pointerId);}catch(err){}
+  const mouse=e.pointerType==='mouse';
+  if(ptrs.size>1||(mouse&&e.button!==0))startOrbit(e.timeStamp);
+  else{
+    const hit=pickFace(e.clientX,e.clientY);
+    if(hit)gest={type:'turn',id:e.pointerId,x0:e.clientX,y0:e.clientY,t0:e.timeStamp,...hit};
+    else gest=mouse?{type:'orbit',...centroid()}:{type:'idle'};   // 觸控單指按在空白處：不轉
+  }
+  if(mouse&&gest.type==='orbit')canvas.style.cursor='grabbing';
 });
+canvas.addEventListener('pointermove',e=>{
+  const pt=ptrs.get(e.pointerId);
+  if(!pt){ if(e.pointerType==='mouse')hoverCursor(e); return; }
+  pt.x=e.clientX; pt.y=e.clientY;
+  const g=gest; if(!g)return;
+  if(g.type==='orbit'){
+    const c=centroid(); orbitBy(c.x-g.x,c.y-g.y); g.x=c.x; g.y=c.y;
+  }else if(g.id!==e.pointerId){
+    return;
+  }else if(g.type==='turn'){
+    const dx=e.clientX-g.x0, dy=e.clientY-g.y0, slop=e.pointerType==='mouse'?4:8;
+    if(dx*dx+dy*dy<slop*slop)return;
+    gest=lockTurn(g,dx,dy);
+    if(gest.type==='drag')dragTo(gest,e.clientX,e.clientY,e.timeStamp);
+  }else if(g.type==='drag'){
+    if(g.gen!==cubeGen)gest={type:'done',id:g.id};
+    else dragTo(g,e.clientX,e.clientY,e.timeStamp);
+  }
+});
+function onPointerEnd(e){
+  if(!ptrs.has(e.pointerId))return;
+  ptrs.delete(e.pointerId);
+  const g=gest, up=e.type==='pointerup';
+  if(g&&g.type==='drag'&&g.id===e.pointerId){
+    if(up&&g.gen===cubeGen)dragTo(g,e.clientX,e.clientY,e.timeStamp);
+    releaseDrag(g,e.timeStamp,up);
+    gest={type:'done',id:g.id};
+  }else if(g&&g.type==='orbit'&&ptrs.size){
+    Object.assign(g,centroid());   // 少了一根手指：重新定位，畫面才不會跳一下
+  }
+  if(!ptrs.size)gest=null;
+  if(up&&e.pointerType==='mouse')hoverCursor(e);
+}
+canvas.addEventListener('pointerup',onPointerEnd);
+canvas.addEventListener('pointercancel',onPointerEnd);
+canvas.addEventListener('lostpointercapture',onPointerEnd);
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+// iOS Safari：雙指手勢不要變成整頁縮放
+['gesturestart','gesturechange','gestureend'].forEach(t=>canvas.addEventListener(t,e=>e.preventDefault()));
+if(matchMedia('(pointer: fine)').matches)
+  document.getElementById('stageHint').textContent='拖曳色塊：轉動那一層 · 拖曳空白處或按住右鍵拖曳：旋轉整顆方塊';
 
 function onResize(){
   const wrap=canvas.parentElement;
@@ -2463,7 +2606,7 @@ const LESSONS=[
     <li><strong>邊塊</strong>：兩色一組，共 12 個，夾在兩個面之間。</li>
     <li><strong>角塊</strong>：三色一組，共 8 個，卡在三個面的交角。</li>
   </ul>
-  <p>右邊的方塊可以用手指拖曳旋轉。按「打亂」感受一下，再按「還原」隨時回到完成狀態。</p>`},
+  <p>試著操作這顆方塊：用一根手指按住任一色塊，往想轉的方向滑，就會轉動那一層；用兩根手指一起拖曳，可以旋轉整顆方塊、換個角度看（用滑鼠時，拖曳方塊外的空白處，或按住右鍵拖曳）。按「打亂」感受一下，再按「還原」隨時回到完成狀態。</p>`},
 
  {id:'notation',group:'基礎',short:'轉動代號',dot:'#ff6a00',title:'轉動代號',eyebrow:'NOTATION',
   sub:'公式就是一連串「哪一面 + 往哪轉」的口令，看懂就看懂全部公式。',
