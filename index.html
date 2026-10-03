@@ -2317,7 +2317,7 @@ function initScene(){
   camera=new THREE.PerspectiveCamera(33,1,0.1,100);
   camera.position.set(6.5,5.9,8.7); camera.lookAt(0,0,0);
   cubeGroup=new THREE.Group();
-  cubeGroup.rotation.set(0.18,-0.12,0);   // 上、前、右三面都看得清楚，單指才按得到、滑得動
+  cubeGroup.rotation.set(0.22,0.18,0);   // 綠色那一面明顯面向你，上面和右面也看得清楚，單指才按得到、滑得動
   scene.add(cubeGroup);
   buildCube();
   onResize();
@@ -2609,16 +2609,15 @@ const LESSONS=[
   <p>試著操作這顆方塊：用一根手指按住任一色塊，往想轉的方向滑，就會轉動那一層；用兩根手指一起拖曳，可以旋轉整顆方塊、換個角度看（用滑鼠時，拖曳方塊外的空白處，或按住右鍵拖曳）。按「打亂」感受一下，再按「還原」隨時回到完成狀態。</p>`},
 
  {id:'notation',group:'基礎',short:'轉動代號',dot:'#ff6a00',title:'轉動代號',eyebrow:'NOTATION',
-  sub:'公式就是一連串「哪一面 + 往哪轉」的口令，看懂就看懂全部公式。',
+  sub:'先學六個最基本的轉動：上、下、左、右、順、逆。',
   moves:true,
-  body:`<p>每個口令 = <strong>面的名稱 ＋ 方向</strong>。面對著你要轉的那一面來判斷順逆。</p>
+  body:`<p>黃色面朝上，從你現在看過去的角度來判斷。點下方按鈕，方塊會即時示範：</p>
   <ul>
-    <li><strong>面的名稱</strong>：上、下、左、右、前、後 —— 對應方塊的六個面。</li>
-    <li><strong>順</strong>：那一面順時針轉 90 度，例如「右順」。</li>
-    <li><strong>逆</strong>：那一面逆時針轉 90 度，例如「右逆」。</li>
-    <li><strong>兩次</strong>：同方向轉 180 度，例如「上兩次」。</li>
+    <li><strong>上／下</strong>：最右邊那一行往上／往下轉。</li>
+    <li><strong>左／右</strong>：最上面那一排往左／往右轉。</li>
+    <li><strong>順／逆</strong>：面向你的那一面，順時針／逆時針轉 90 度。</li>
   </ul>
-  <p>點下方按鈕，方塊會即時示範每一個轉動。慢慢按，把每個口令和動作對上。</p>`},
+  <p>後面課程的公式會寫成「面的名稱＋方向」，例如「右順」「上逆」：面的名稱是上、下、左、右、前、後六個面，「順」「逆」是面對著那一面看的順時針、逆時針，「兩次」是轉 180 度。</p>`},
 
  {id:'lbl',group:'入門解法',short:'層先法 LBL',dot:'#0046ad',title:'層先法 LBL',eyebrow:'BEGINNER METHOD',
   sub:'把方塊拆成三層，一層一層完成，建立空間感。',
@@ -2774,11 +2773,34 @@ function buildMap(){
   });
 }
 
-const MOVE_BTNS=["U","U'","R","R'","L","L'","D","D'","F","F'","B","B'"];
+/* 轉動代號那一課的六個按鈕（黃色朝上，依你現在看過去的角度決定轉哪一面）
+   上／下：最右邊那一行往上／往下轉；左／右：最上面那一排往左／往右轉；順／逆：面向你的那一面轉 90 度 */
+const SIDE_FACES=['F','R','B','L'];   // 從上往下看依順時針排列：面向你的那一面，右手邊就是下一個
+const PAD=[
+  {label:'上',tip:'最右邊那一行往上轉',side:1,dir:1},
+  {label:'下',tip:'最右邊那一行往下轉',side:1,dir:-1},
+  {label:'左',tip:'最上面那一排往左轉',face:'U',dir:1},
+  {label:'右',tip:'最上面那一排往右轉',face:'U',dir:-1},
+  {label:'順',tip:'面向你的那一面順時針轉 90 度',side:0,dir:1},
+  {label:'逆',tip:'面向你的那一面逆時針轉 90 度',side:0,dir:-1},
+];
+// 現在面向你的是哪一個側面：看鏡頭在方塊座標裡的水平方位（0 度＝前面、90 度＝右面）。
+// 斜看兩個側面時算左邊那一面（和預設角度一樣）；要轉到離右邊那一面正對只差 20 度，才改算右邊那一面。
+function facingSide(){
+  cubeGroup.updateMatrixWorld();
+  const c=camera.position.clone().applyMatrix4(cubeGroup.matrixWorld.clone().invert());
+  const k=Math.round((Math.atan2(c.x,c.z)-0.44)/(Math.PI/2));
+  return ((k%4)+4)%4;
+}
 (function buildMoveBtns(){
-  MOVE_BTNS.forEach(m=>{
-    const b=document.createElement('button');b.textContent=toCN(m);
-    b.onclick=()=>{if(!busy)enqueue(parseAlg(m));};
+  PAD.forEach(p=>{
+    const b=document.createElement('button');b.textContent=p.label;
+    b.title=p.label+'：'+p.tip; b.setAttribute('aria-label',b.title);
+    b.onclick=()=>{
+      if(busy)return;
+      const f=p.face||SIDE_FACES[(facingSide()+p.side)%4];
+      enqueue([{f,dir:p.dir,times:1}]);
+    };
     movesEl.appendChild(b);
   });
 })();
