@@ -2326,13 +2326,17 @@ function initScene(){
   requestAnimationFrame(loop);
 }
 
+let cubeGen=0;   // 每重建一次方塊就 +1；還在跑的動畫或手勢發現編號變了，就知道自己已經過期
 function buildCube(){
-  // 移除並釋放舊的所有子物件（含任何殘留）
+  cubeGen++;
+  // 移除並釋放舊的所有子物件（含任何殘留，例如轉到一半的那一層還掛在 pivot 底下）
   for(let i=cubeGroup.children.length-1;i>=0;i--){
     const c=cubeGroup.children[i];
-    if(c.geometry)c.geometry.dispose();
-    if(Array.isArray(c.material))c.material.forEach(m=>m.dispose());
-    else if(c.material)c.material.dispose();
+    c.traverse(o=>{
+      if(o.geometry)o.geometry.dispose();
+      if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());
+      else if(o.material)o.material.dispose();
+    });
     cubeGroup.remove(c);
   }
   cubelets=[];
@@ -2380,15 +2384,19 @@ function snap(c){
   const e=m.elements;[0,1,2,4,5,6,8,9,10].forEach(i=>e[i]=Math.round(e[i]));
   c.quaternion.setFromRotationMatrix(m);
 }
+// 轉完一層：把方塊放回 cubeGroup，位置與角度修正成整數格
+function settle(pivot,layer){
+  layer.forEach(c=>{cubeGroup.attach(c);
+    c.position.set(Math.round(c.position.x),Math.round(c.position.y),Math.round(c.position.z));
+    snap(c);});
+  cubeGroup.remove(pivot);
+}
 function applyInstant(moves){
   moves.forEach(mv=>{
     const def=M[mv.f], pivot=new THREE.Group(); cubeGroup.add(pivot);
     const layer=selectLayer(mv); layer.forEach(c=>pivot.attach(c));
     pivot.setRotationFromAxisAngle(AX[def.a], def.s*mv.dir*(Math.PI/2)*mv.times);
-    layer.forEach(c=>{cubeGroup.attach(c);
-      c.position.set(Math.round(c.position.x),Math.round(c.position.y),Math.round(c.position.z));
-      snap(c);});
-    cubeGroup.remove(pivot);
+    settle(pivot,layer);
   });
 }
 
@@ -2396,21 +2404,19 @@ let queue=[],busy=false;
 function enqueue(moves){queue.push(...moves);pump();}
 function pump(){
   if(busy||!queue.length)return; busy=true;
-  const mv=queue.shift(), def=M[mv.f];
+  const mv=queue.shift(), def=M[mv.f], gen=cubeGen;
   const pivot=new THREE.Group(); cubeGroup.add(pivot);
   const layer=selectLayer(mv); layer.forEach(c=>pivot.attach(c));
   const total=def.s*mv.dir*(Math.PI/2)*mv.times, dur=250*mv.times, t0=performance.now();
   (function tick(now){
+    if(gen!==cubeGen)return;   // 轉到一半被重置：舊方塊已移除，不能再把這一層放回去
     let t=Math.min((now-t0)/dur,1);
     const e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
     pivot.setRotationFromAxisAngle(AX[def.a],total*e);
     if(t<1)requestAnimationFrame(tick);
     else{
       pivot.setRotationFromAxisAngle(AX[def.a],total);
-      layer.forEach(c=>{cubeGroup.attach(c);
-        c.position.set(Math.round(c.position.x),Math.round(c.position.y),Math.round(c.position.z));
-        snap(c);});
-      cubeGroup.remove(pivot); busy=false; pump();
+      settle(pivot,layer); busy=false; pump();
     }
   })(t0);
 }
@@ -2733,8 +2739,8 @@ const SOLVER_COLORS=[
 const HEX={},K2FACE={}; SOLVER_COLORS.forEach(c=>{HEX[c.k]=c.hex;K2FACE[c.k]=c.face;});
 const CENTER_K={U:'w',R:'r',F:'g',D:'y',L:'o',B:'b'};
 const SBASE={U:0,R:9,F:18,D:27,L:36,B:45};
-const SFLIP={U:false,F:false,D:false,R:true,L:true,B:true};
-function sIdx(face,r,c){return SBASE[face]+r*3+(SFLIP[face]?2-c:c);}
+// 照下方各面的提示去看，格子的列、行順序就和 cubejs 的貼紙編號一致，任何一面都不需要左右翻轉
+function sIdx(face,r,c){return SBASE[face]+r*3+c;}
 const SFACE_INFO=[
   {f:'U',label:'上面（白心）',hint:'看頂面時，讓綠色那一排在「下緣」'},
   {f:'F',label:'前面（綠心）',hint:'正對著看，白色在上'},
