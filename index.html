@@ -234,9 +234,9 @@
         <div class="stage-wrap">
           <canvas id="stage"></canvas>
           <div class="stage-badge">
-            <i style="background:var(--w)"></i><i style="background:var(--r)"></i>
-            <i style="background:var(--g)"></i><i style="background:var(--y)"></i>
-            <i style="background:var(--o)"></i><i style="background:var(--b)"></i>
+            <i style="background:var(--y)"></i><i style="background:var(--o)"></i>
+            <i style="background:var(--g)"></i><i style="background:var(--w)"></i>
+            <i style="background:var(--r)"></i><i style="background:var(--b)"></i>
           </div>
           <div class="stage-hint">拖曳可旋轉視角</div>
         </div>
@@ -2302,7 +2302,8 @@
 /* ============================================================
    1. 3D 魔術方塊引擎（自建，支援公式解析與動畫播放）
    ============================================================ */
-const COL={ U:0xf7f7f5,D:0xffd500,F:0x00a24a,B:0x0046ad,R:0xc41e3a,L:0xff6a00,X:0x141a20 };
+// 黃上白下、綠前（等於標準握法整顆以前面為軸翻 180 度，所以紅、橘也左右互換，才和實體方塊一致）
+const COL={ U:0xffd500,D:0xf7f7f5,F:0x00a24a,B:0x0046ad,R:0xff6a00,L:0xc41e3a,X:0x141a20 };
 
 let renderer,scene,camera,cubeGroup,cubelets=[];
 const canvas=document.getElementById('stage');
@@ -2732,22 +2733,22 @@ document.getElementById('resetTop').onclick=()=>resetCube();
    魔方還原器：輸入配色 → 算出還原步驟 → 帶著轉回原狀 → 開始學
    ============================================================ */
 const SOLVER_COLORS=[
-  {k:'w',hex:'#f7f7f5',face:'U',name:'白'},{k:'r',hex:'#c41e3a',face:'R',name:'紅'},
-  {k:'g',hex:'#00a24a',face:'F',name:'綠'},{k:'y',hex:'#ffd500',face:'D',name:'黃'},
-  {k:'o',hex:'#ff6a00',face:'L',name:'橘'},{k:'b',hex:'#0046ad',face:'B',name:'藍'},
+  {k:'w',hex:'#f7f7f5',face:'D',name:'白'},{k:'r',hex:'#c41e3a',face:'L',name:'紅'},
+  {k:'g',hex:'#00a24a',face:'F',name:'綠'},{k:'y',hex:'#ffd500',face:'U',name:'黃'},
+  {k:'o',hex:'#ff6a00',face:'R',name:'橘'},{k:'b',hex:'#0046ad',face:'B',name:'藍'},
 ];
 const HEX={},K2FACE={}; SOLVER_COLORS.forEach(c=>{HEX[c.k]=c.hex;K2FACE[c.k]=c.face;});
-const CENTER_K={U:'w',R:'r',F:'g',D:'y',L:'o',B:'b'};
+const CENTER_K={U:'y',R:'o',F:'g',D:'w',L:'r',B:'b'};
 const SBASE={U:0,R:9,F:18,D:27,L:36,B:45};
 // 照下方各面的提示去看，格子的列、行順序就和 cubejs 的貼紙編號一致，任何一面都不需要左右翻轉
 function sIdx(face,r,c){return SBASE[face]+r*3+c;}
 const SFACE_INFO=[
-  {f:'U',label:'上面（白心）',hint:'看頂面時，讓綠色那一排在「下緣」'},
-  {f:'F',label:'前面（綠心）',hint:'正對著看，白色在上'},
-  {f:'R',label:'右面（紅心）',hint:'看右面時，白色在上'},
-  {f:'B',label:'後面（藍心）',hint:'看後面時，白色在上'},
-  {f:'L',label:'左面（橘心）',hint:'看左面時，白色在上'},
-  {f:'D',label:'下面（黃心）',hint:'看底面時，讓綠色那一排在「上緣」'},
+  {f:'U',label:'上面（黃心）',hint:'看頂面時，讓綠色那一排在「下緣」'},
+  {f:'F',label:'前面（綠心）',hint:'正對著看，黃色在上'},
+  {f:'R',label:'右面（橘心）',hint:'看右面時，黃色在上'},
+  {f:'B',label:'後面（藍心）',hint:'看後面時，黃色在上'},
+  {f:'L',label:'左面（紅心）',hint:'看左面時，黃色在上'},
+  {f:'D',label:'下面（白心）',hint:'看底面時，讓綠色那一排在「上緣」'},
 ];
 let solverGrid=null, paintColor='w', solverInited=false, sol=[], solStep=0;
 
@@ -2808,7 +2809,7 @@ function renderSolver(){
   let html=`<div class="eyebrow">CUBE SOLVER</div><h2>先解開我的魔方</h2>
     <div class="sub">把手上亂掉的魔方配色輸進來，我算出還原步驟帶你轉回原狀，再開始從頭學。</div>`;
   if(sol.length===0){
-    html+=`<p><strong>握法固定</strong>：白色面朝上、綠色面朝前，全程不要轉動整顆方塊。先點下方顏色，再點格子填入對應位置的顏色（中心已固定）。</p>
+    html+=`<p><strong>握法固定</strong>：黃色面朝上、綠色面朝前，全程不要轉動整顆方塊。先點下方顏色，再點格子填入對應位置的顏色（中心已固定）。</p>
       <div class="palette" id="palette"></div>
       <div class="net" id="net"></div>
       <div class="solver-btns">
