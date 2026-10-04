@@ -2586,7 +2586,11 @@ function onResize(){
 }
 function loop(){requestAnimationFrame(loop);renderer.render(scene,camera);}
 
-function resetCube(){queue=[];busy=false;buildCube();}
+// 用六個代號寫的公式，以哪一面當「面向你的那一面」：設定情況或第一次播放時記下來，方塊重置就清掉，
+// 這樣設定好情況後再用雙指轉去看別面，播放解法還是能把它轉回來
+let caseSide=null;
+function sideForCase(){if(caseSide===null)caseSide=facingSide();return caseSide;}
+function resetCube(){queue=[];busy=false;caseSide=null;buildCube();}
 function scramble(){resetCube();
   const fs=['U','D','R','L','F','B'];let last='';const seq=[];
   for(let i=0;i<20;i++){let f;do{f=fs[Math.random()*6|0]}while(f===last);last=f;
@@ -2597,6 +2601,8 @@ function scramble(){resetCube();
 /* ============================================================
    2. 教學內容與學習路徑（可自由擴充）
    ============================================================ */
+// alg 一律用標準寫法；標了 codes:true 的課程，畫面上會換成上、下、左、右、順、逆六個代號，
+// 所以這些課程的 alg 只能用 R、U、F（可加 ' 或 2）
 const LESSONS=[
  {id:'basics',group:'基礎',short:'認識方塊',dot:'#f7f7f5',title:'基礎認識',eyebrow:'START HERE',
   sub:'先看懂方塊怎麼組成，之後每一步都更好理解。',
@@ -2617,7 +2623,7 @@ const LESSONS=[
     <li><strong>左／右</strong>：最上面那一排往左／往右轉。</li>
     <li><strong>順／逆</strong>：面向你的那一面，順時針／逆時針轉 90 度。</li>
   </ul>
-  <p>後面課程的公式會寫成「面的名稱＋方向」，例如「右順」「上逆」：面的名稱是上、下、左、右、前、後六個面，「順」「逆」是面對著那一面看的順時針、逆時針，「兩次」是轉 180 度。</p>`},
+  <p>層先法、頂層翻色、頂層歸位的公式，都用這六個字來寫。底兩層 F2L 的公式和「解開我的魔方」算出的步驟，則寫成「面的名稱＋方向」，例如「右順」「上逆」：面的名稱是上、下、左、右、前、後六個面，「順」「逆」是面對著那一面看的順時針、逆時針，「兩次」是轉 180 度。</p>`},
 
  {id:'lbl',group:'入門解法',short:'層先法 LBL',dot:'#0046ad',title:'層先法 LBL',eyebrow:'BEGINNER METHOD',
   sub:'把方塊拆成三層，一層一層完成，建立空間感。',
@@ -2629,8 +2635,9 @@ const LESSONS=[
     <li><strong>④ 頂層</strong>：完成頂面十字、翻色、最後歸位。</li>
   </ul>
   <p>下面是「中層邊塊往右插入」的常用小公式，點播放看看它怎麼運作。</p>`,
-  cases:[{name:'中層邊塊 · 往右',alg:"U R U' R' U' F' U F",mnemonic:'邊塊往<b>右</b>：先躲上面，右手放進去，再用<b>前手</b>補回來。'},
-         {name:'中層邊塊 · 往左',alg:"U' L' U L U F U' F'",mnemonic:'和往右<b>完全鏡像</b>：右手換左手，前手換前手。'}]},
+  codes:true,
+  cases:[{name:'中層邊塊 · 往右',alg:"U R U' R' U' F' U F",mnemonic:'邊塊在<b>前面</b>頂層、要往<b>右</b>插：先「左 上 右 下」把右邊放進去，再「右 逆 左 順」用前面補回來。'},
+         {name:'中層邊塊 · 往左',alg:"U' F' U F U R U' R'",mnemonic:'邊塊在<b>右面</b>頂層、要往<b>左</b>插：把往右的兩段<b>對調</b>，先「右 逆 左 順」，再「左 上 右 下」。'}]},
 
  {id:'cfop',group:'進階 CFOP',short:'CFOP 總覽',dot:'#141a20',title:'CFOP 總覽',eyebrow:'ADVANCED',
   sub:'速解主流方法，把過程拆成四塊獨立技能。',
@@ -2671,14 +2678,15 @@ const LESSONS=[
   body:`<p>OLL（Orientation of the Last Layer）只做一件事：把頂面翻成同色。先學這四個高頻情況。</p>
   <ul>
     <li>先辨識頂面現在的圖案（點、線、L 形、十字、小魚…）。</li>
-    <li>把方塊轉到公式假設的方向，再套用對應公式。</li>
+    <li>先按「左」或「右」轉動頂層，把圖案轉到公式假設的方向，再套用對應公式。</li>
     <li>翻色完成後不用管側面亂掉，那是下一步 PLL 的事。</li>
   </ul>
   <p>選情況 → 設定情況 → 播放解法，觀察頂面怎麼一次翻好。</p>`,
-  cases:[{name:'一字型（頂面橫線）',alg:"F R U R' U' F'",mnemonic:'橫線朝<b>左右</b>擺好：用<b>前</b>開頭、<b>前</b>收尾。'},
-         {name:'彎角型（L 形）',alg:"F U R U' R' F'",mnemonic:'把彎角朝<b>左上</b>：一樣用<b>前</b>把動作包起來，中間換順序。'},
-         {name:'小魚 Sune',alg:"R U R' U R U2 R'",mnemonic:'<b>小魚</b>：右上右、右上上右。只用右手就搞定。'},
-         {name:'反小魚 Anti-Sune',alg:"R U2 R' U' R U' R'",mnemonic:'小魚的<b>反向</b>：先右上上，再連兩組右手收尾。'}]},
+  codes:true,
+  cases:[{name:'一字型（頂面橫線）',alg:"F R U R' U' F'",mnemonic:'把橫線擺成<b>橫向</b>：「順」開頭、「逆」收尾，中間是「上 左 下 右」。'},
+         {name:'彎角型（L 形）',alg:"F U R U' R' F'",mnemonic:'把彎角擺在頂面<b>左後方</b>：一樣用「順」「逆」包起來，中間換成「左 上 右 下」。'},
+         {name:'小魚 Sune',alg:"R U R' U R U2 R'",mnemonic:'<b>小魚</b>：「上 左 下」、「左」、「上 左 左 下」。只動到最右邊那一行和最上面那一排。'},
+         {name:'反小魚 Anti-Sune',alg:"R U2 R' U' R U' R'",mnemonic:'小魚的<b>反向</b>：「上 左 左 下」、「右」、「上 右 下」。'}]},
 
  {id:'pll',group:'進階 CFOP',short:'頂層歸位 PLL',dot:'#0046ad',title:'頂層歸位 PLL',eyebrow:'STEP · P',
   sub:'最後一步：把頂層每一塊移到對的位置。',
@@ -2686,12 +2694,13 @@ const LESSONS=[
   <ul>
     <li>先繞著頂層看一圈，找出哪些塊需要交換。</li>
     <li>對照下面四個常見情況，套用公式。</li>
-    <li>最後可能還要轉一下頂層 U，讓整顆完全對齊。</li>
+    <li>最後可能還要按幾下「左」或「右」轉動頂層，讓每一面都變回同一個顏色。</li>
   </ul>
   <p>設定情況後播放，看最後一塊怎麼各就各位。</p>`,
+  codes:true,
   cases:[{name:'T 型（T-perm）',alg:"R U R' U' R' F R2 U' R' U' R U R' F'",mnemonic:'交換<b>一組相鄰角</b>和<b>一組邊</b>，最常遇到的收尾。'},
          {name:'Y 型（Y-perm）',alg:"F R U' R' U' R U R' F' R U R' U' R' F R F'",mnemonic:'對角兩角互換：<b>兩段公式</b>接起來，長但很順手。'},
-         {name:'三邊輪換（Ua-perm）',alg:"R U' R U R U R U' R' U' R2",mnemonic:'三個邊塊<b>逆時針</b>輪一圈，只用右手和上層。'},
+         {name:'三邊輪換（Ua-perm）',alg:"R U' R U R U R U' R' U' R2",mnemonic:'三個邊塊<b>逆時針</b>輪一圈，只用到「上 下 左 右」四個字。'},
          {name:'角＋邊（Jb-perm）',alg:"R U R' F' R U R' U' R' F R2 U' R' U'",mnemonic:'換<b>一組角一組邊</b>，和 T 型是好搭檔。'}]},
 ];
 
@@ -2773,17 +2782,27 @@ function buildMap(){
   });
 }
 
-/* 轉動代號那一課的六個按鈕（黃色朝上，依你現在看過去的角度決定轉哪一面）
+/* 六個轉動代號（黃色朝上，依面向你的那一面來判斷）：轉動代號那一課的按鈕，以及層先法、OLL、PLL 的公式都用它
    上／下：最右邊那一行往上／往下轉；左／右：最上面那一排往左／往右轉；順／逆：面向你的那一面轉 90 度 */
 const SIDE_FACES=['F','R','B','L'];   // 從上往下看依順時針排列：面向你的那一面，右手邊就是下一個
-const PAD=[
-  {label:'上',tip:'最右邊那一行往上轉',side:1,dir:1},
-  {label:'下',tip:'最右邊那一行往下轉',side:1,dir:-1},
-  {label:'左',tip:'最上面那一排往左轉',face:'U',dir:1},
-  {label:'右',tip:'最上面那一排往右轉',face:'U',dir:-1},
-  {label:'順',tip:'面向你的那一面順時針轉 90 度',side:0,dir:1},
-  {label:'逆',tip:'面向你的那一面逆時針轉 90 度',side:0,dir:-1},
-];
+const CODES={
+  上:{side:1,dir:1,tip:'最右邊那一行往上轉'},
+  下:{side:1,dir:-1,tip:'最右邊那一行往下轉'},
+  左:{face:'U',dir:1,tip:'最上面那一排往左轉'},
+  右:{face:'U',dir:-1,tip:'最上面那一排往右轉'},
+  順:{side:0,dir:1,tip:'面向你的那一面順時針轉 90 度'},
+  逆:{side:0,dir:-1,tip:'面向你的那一面逆時針轉 90 度'},
+};
+// 代號 → 實際要轉的那一步；side 是面向你的側面（SIDE_FACES 的索引）
+function codeMove(code,side){const c=CODES[code];return {f:c.face||SIDE_FACES[(side+c.side)%4],dir:c.dir,times:1};}
+// 公式原本的寫法（綠色面向你時的 R、U、F）→ 六個代號；「兩次」寫成同一個代號兩次
+const TO_CODE={R:['上','下'],U:['左','右'],F:['順','逆']};
+function toCodes(alg){
+  return parseAlg(alg).flatMap(m=>{
+    const pair=TO_CODE[m.f]; if(!pair)throw new Error('六個代號只能表示 R、U、F，這一步寫不出來：'+m.f);
+    const c=pair[m.dir>0?0:1]; return m.times===2?[c,c]:[c];
+  });
+}
 // 現在面向你的是哪一個側面：看鏡頭在方塊座標裡的水平方位（0 度＝前面、90 度＝右面）。
 // 斜看兩個側面時算左邊那一面（和預設角度一樣）；要轉到離右邊那一面正對只差 20 度，才改算右邊那一面。
 function facingSide(){
@@ -2793,14 +2812,10 @@ function facingSide(){
   return ((k%4)+4)%4;
 }
 (function buildMoveBtns(){
-  PAD.forEach(p=>{
-    const b=document.createElement('button');b.textContent=p.label;
-    b.title=p.label+'：'+p.tip; b.setAttribute('aria-label',b.title);
-    b.onclick=()=>{
-      if(busy)return;
-      const f=p.face||SIDE_FACES[(facingSide()+p.side)%4];
-      enqueue([{f,dir:p.dir,times:1}]);
-    };
+  Object.keys(CODES).forEach(code=>{
+    const b=document.createElement('button');b.textContent=code;
+    b.title=code+'：'+CODES[code].tip; b.setAttribute('aria-label',b.title);
+    b.onclick=()=>{if(!busy)enqueue([codeMove(code,facingSide())]);};
     movesEl.appendChild(b);
   });
 })();
@@ -2872,12 +2887,21 @@ function renderCompleteBar(){
 
 function renderTokens(){
   const box=panel.querySelector('#tokens'); if(!box)return;
-  activeCase.alg.trim().split(/\s+/).forEach(t=>{
-    const b=document.createElement('button');b.className='token';b.textContent=toCN(t);
+  // 用六個代號的課程：一個代號一格，依面向你的那一面來轉；其他課程維持「面的名稱＋方向」
+  const steps=current.codes
+    ? toCodes(activeCase.alg).map(c=>({label:c,tip:c+'：'+CODES[c].tip,moves:()=>[codeMove(c,sideForCase())]}))
+    : activeCase.alg.trim().split(/\s+/).map(t=>({label:toCN(t),moves:()=>parseAlg(t)}));
+  steps.forEach(s=>{
+    const b=document.createElement('button');b.className='token';b.textContent=s.label;
+    if(s.tip)b.title=s.tip;
     b.onclick=()=>{if(busy)return;b.classList.add('flash');setTimeout(()=>b.classList.remove('flash'),260);
-      enqueue(parseAlg(t));};
+      enqueue(s.moves());};
     box.appendChild(b);
   });
+}
+// 目前情況的整串公式，換成實際要轉的步驟
+function caseMoves(){
+  return current.codes?toCodes(activeCase.alg).map(c=>codeMove(c,sideForCase())):parseAlg(activeCase.alg);
 }
 
 function renderControls(){
@@ -2885,8 +2909,8 @@ function renderControls(){
   const mk=(label,cls,fn,dis)=>{const b=document.createElement('button');
     b.className='btn'+(cls?' '+cls:'');b.textContent=label;b.disabled=!!dis;b.onclick=fn;controls.appendChild(b);};
   if(activeCase){
-    mk('設定情況','',()=>{if(busy)return;resetCube();applyInstant(invert(parseAlg(activeCase.alg)));});
-    mk('▶ 播放解法','primary',()=>{if(busy)return;enqueue(parseAlg(activeCase.alg));});
+    mk('設定情況','',()=>{if(busy)return;resetCube();applyInstant(invert(caseMoves()));});
+    mk('▶ 播放解法','primary',()=>{if(busy)return;enqueue(caseMoves());});
   }
   mk('🔀 打亂','',()=>scramble());
   mk('↺ 重置','',()=>resetCube());
